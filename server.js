@@ -19,6 +19,13 @@ import { toDays } from "./public/logic.js";
 const app = express();
 const PORT = process.env.PORT ?? 3000;
 
+if (!process.env.ADMIN_TOKEN) {
+  console.error(
+    "ADMIN_TOKEN is not set. Copy .env.example to .env."
+  );
+  process.exit(1);
+}
+
 const CITIES = {
   seoul: {
     name: "Seoul",
@@ -37,16 +44,14 @@ const CITIES = {
   }
 };
 
+const counts = {};
 
-// Serve static files from the public directory.
 app.use(express.static("public"));
 
-// Health check endpoint.
 app.get("/api/health", (req, res) => {
   res.status(200).json({ status: "ok" });
 });
 
-// Get the 7-day forecast for a selected city.
 app.get("/api/forecast", async (req, res) => {
   const cityKey = req.query.city;
 
@@ -55,6 +60,8 @@ app.get("/api/forecast", async (req, res) => {
       error: `Unknown city: ${cityKey}`
     });
   }
+
+  counts[cityKey] = (counts[cityKey] ?? 0) + 1;
 
   const city = CITIES[cityKey];
 
@@ -73,8 +80,19 @@ app.get("/api/forecast", async (req, res) => {
   }
 });
 
+app.get("/api/stats", (req, res) => {
+  const authorization = req.get("Authorization");
+  const expectedToken = `Bearer ${process.env.ADMIN_TOKEN}`;
 
-// Start the server.
+  if (authorization !== expectedToken) {
+    return res.status(401).json({
+      error: "Unauthorized"
+    });
+  }
+
+  return res.status(200).json(counts);
+});
+
 app.listen(PORT, (error) => {
   if (error) {
     throw error;
